@@ -73,4 +73,79 @@ Nom, prénom et service sont obligatoires.
 const QUESTIONS=[
 {q:"Première action sur alarme ?",o:["Zone","Arrêter SDI","Réarmer","Pompiers"],c:1},
 {q:"Lecture prioritaire ?",o:["Date","Zonage","Historique","Niveau"],c:1},
-{q:"Voyant DM ?",o:["Vert","Rouge clignotant","Bleu","Orange"],c:
+{q:"Voyant DM ?",o:["Vert","Rouge clignotant","Bleu","Orange"],c:1},
+{q:"Feu avéré ?",o:["Attendre","Réarmer","Procédures urgence","Couper elec"],c:2},
+{q:"Réarmer DM si ?",o:["Toujours","Fausse alarme","Avant doute","Jamais"],c:1},
+{q:"Niveau 2 SMSI ?",o:["Évacuer","Neutraliser","Accès commandes","Stop SDI"],c:2},
+{q:"Rôle SDI ?",o:["Agir","Détecter","Évacuer","Commander"],c:1},
+{q:"Rôle SMSI ?",o:["Détecter","Informer","Piloter DAS","Éteindre"],c:2},
+{q:"SSI réarmé si ?",o:["Alarme stop","Doute","DAS repos","CEV présent"],c:2},
+{q:"Priorité CEV ?",o:["Service","Matériel","Personnes","Image"],c:2},
+{q:"Rôle avec secours ?",o:["Commander","Intervenir","Informer","Éteindre"],c:2},
+{q:"Levée de doute ?",o:["Seul","Risque","Sans danger","En courant"],c:2}
+];
+
+let idx=0,answers=[];
+
+const $=id=>document.getElementById(id);
+
+$("startBtn").onclick=()=>{
+  if(!$("service").value || !$("nom").value || !$("prenom").value){
+    $("startError").style.display="block";
+    return;
+  }
+  $("startError").style.display="none";
+  $("startCard").style.display="none";
+  $("quizCard").style.display="block";
+  render();
+};
+
+function render(){
+  $("qIndex").textContent=idx+1;
+  $("question").textContent=QUESTIONS[idx].q;
+  $("options").innerHTML="";
+  QUESTIONS[idx].o.forEach((t,i)=>{
+    const l=document.createElement("label");
+    l.innerHTML=`<input type="radio" name="opt" value="${i}"> ${t}`;
+    $("options").appendChild(l);
+  });
+  $("nextBtn").disabled=true;
+  $("options").onchange=()=>$("nextBtn").disabled=false;
+}
+
+$("nextBtn").onclick=()=>{
+  const sel=[...document.getElementsByName("opt")].find(r=>r.checked);
+  answers.push(sel?+sel.value:null);
+  idx++;
+  if(idx===QUESTIONS.length){
+    $("quizCard").style.display="none";
+    $("sendCard").style.display="block";
+  } else render();
+};
+
+$("sendBtn").onclick=()=>{
+  showCorrection(); // AFFICHAGE GARANTI
+};
+
+function showCorrection(){
+  $("sendCard").style.display="none";
+  $("correctionCard").style.display="block";
+  let score=0;
+  $("details").innerHTML="";
+  QUESTIONS.forEach((q,i)=>{
+    const ok=answers[i]===q.c;
+    if(ok) score++;
+    const div=document.createElement("div");
+    div.innerHTML=`
+      <p>
+      <strong>Q${i+1}</strong> – ${q.q}<br>
+      <span class="${ok?"good":"bad"}">Ta réponse : ${q.o[answers[i]]||"Aucune"}</span><br>
+      <span class="good">Bonne réponse : ${q.o[q.c]}</span>
+      </p>`;
+    $("details").appendChild(div);
+  });
+  $("score").innerHTML=`<strong>Score : ${score}/12</strong>`;
+}
+</script>
+</body>
+</html>
