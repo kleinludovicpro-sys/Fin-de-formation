@@ -6,32 +6,95 @@
 <title>QCM Culture Incendie – Fin de formation</title>
 
 <style>
-body{margin:0;font-family:system-ui;background:#0f1115;color:#111}
-.container{max-width:800px;margin:auto;padding:20px}
-.card{background:#fff;border-radius:16px;padding:20px;margin-bottom:15px}
-h1{color:#fff;text-align:center}
-label{font-weight:700;display:block;margin-top:10px}
-input,select,textarea{width:100%;padding:12px;margin-top:5px}
-button{width:100%;padding:14px;margin-top:15px;font-weight:700}
-.danger{color:#c62828;font-weight:700}
-.good{color:#2e7d32;font-weight:700}
-.bad{color:#c62828;font-weight:700}
+:root{
+  --ok:#2e7d32;
+  --ko:#c62828;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,sans-serif;
+  background:#0f1115;
+  color:#111;
+}
+.bg{
+  position:fixed;
+  inset:0;
+  background:url("regiolis.jpg") center/cover no-repeat;
+  z-index:-3;
+}
+.overlay{
+  position:fixed;
+  inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.75),rgba(0,0,0,.55));
+  z-index:-2;
+}
+.container{
+  max-width:800px;
+  margin:auto;
+  padding:20px;
+}
+.card{
+  background:#fff;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:15px;
+  box-shadow:0 10px 25px rgba(0,0,0,.3);
+}
+h1{
+  color:#fff;
+  text-align:center;
+}
+label{
+  font-weight:700;
+  display:block;
+  margin-top:12px;
+}
+input,select,textarea{
+  width:100%;
+  padding:12px;
+  margin-top:5px;
+}
+button{
+  width:100%;
+  padding:14px;
+  margin-top:15px;
+  font-weight:700;
+  cursor:pointer;
+}
+.options label{
+  display:flex;
+  align-items:center;
+  border:1px solid #ddd;
+  padding:10px;
+  border-radius:8px;
+  margin-bottom:8px;
+}
+.options input{margin-right:10px}
+.danger{color:var(--ko);font-weight:700}
+.good{color:var(--ok);font-weight:700}
+.bad{color:var(--ko);font-weight:700}
 </style>
 </head>
 
 <body>
+<div class="bg"></div>
+<div class="overlay"></div>
+
 <div class="container">
 <h1>QCM Culture Incendie</h1>
 
-<!-- START -->
+<!-- ACCÈS FORMATION -->
 <div id="startCard" class="card">
 <label>Service *</label>
 <select id="service">
-  <option value="">— Choisir —</option>
+  <option value="">— Sélectionner —</option>
   <option>Escale</option>
   <option>ASCT</option>
   <option>Vente / Accueil</option>
   <option>Sûreté</option>
+  <option>Maintenance / Technique</option>
+  <option>Gares & Connexions</option>
 </select>
 
 <label>Nom *</label>
@@ -39,26 +102,30 @@ button{width:100%;padding:14px;margin-top:15px;font-weight:700}
 <label>Prénom *</label>
 <input id="prenom">
 
+<label>Code de formation *</label>
+<input id="code" placeholder="Code communiqué en fin de formation">
+
 <p id="startError" class="danger" style="display:none">
-Nom, prénom et service sont obligatoires.
+Tous les champs sont obligatoires et le code doit être valide.
 </p>
 
-<button id="startBtn">Démarrer</button>
+<button id="startBtn">Démarrer le QCM</button>
 </div>
 
 <!-- QUIZ -->
 <div id="quizCard" class="card" style="display:none">
 <p><strong>Question <span id="qIndex"></span>/12</strong></p>
 <div id="question"></div>
-<div id="options"></div>
+<div id="options" class="options"></div>
 <button id="nextBtn" disabled>Valider & Suivant</button>
 </div>
 
-<!-- SEND -->
+<!-- ENVOI -->
 <div id="sendCard" class="card" style="display:none">
-<label>Remarque (optionnel)</label>
+<label>Remarque / retour (optionnel)</label>
 <textarea id="commentaire"></textarea>
 <button id="sendBtn">Envoyer mes réponses</button>
+<p id="sendInfo"></p>
 </div>
 
 <!-- CORRECTION -->
@@ -70,27 +137,38 @@ Nom, prénom et service sont obligatoires.
 </div>
 
 <script>
-const QUESTIONS=[
-{q:"Première action sur alarme ?",o:["Zone","Arrêter SDI","Réarmer","Pompiers"],c:1},
-{q:"Lecture prioritaire ?",o:["Date","Zonage","Historique","Niveau"],c:1},
-{q:"Voyant DM ?",o:["Vert","Rouge clignotant","Bleu","Orange"],c:1},
-{q:"Feu avéré ?",o:["Attendre","Réarmer","Procédures urgence","Couper elec"],c:2},
-{q:"Réarmer DM si ?",o:["Toujours","Fausse alarme","Avant doute","Jamais"],c:1},
-{q:"Niveau 2 SMSI ?",o:["Évacuer","Neutraliser","Accès commandes","Stop SDI"],c:2},
-{q:"Rôle SDI ?",o:["Agir","Détecter","Évacuer","Commander"],c:1},
-{q:"Rôle SMSI ?",o:["Détecter","Informer","Piloter DAS","Éteindre"],c:2},
-{q:"SSI réarmé si ?",o:["Alarme stop","Doute","DAS repos","CEV présent"],c:2},
-{q:"Priorité CEV ?",o:["Service","Matériel","Personnes","Image"],c:2},
-{q:"Rôle avec secours ?",o:["Commander","Intervenir","Informer","Éteindre"],c:2},
-{q:"Levée de doute ?",o:["Seul","Risque","Sans danger","En courant"],c:2}
+/* CONFIG */
+const CODE_SESSION = "escalebayonne";
+const APPS_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbwmsKnIF0TcKtKYAnwg0XetWkUiorxTJuBYW6gw6zbTohBUhvI1b5bJO9ladR-zssG2/exec";
+
+/* QUESTIONS */
+const QUESTIONS = [
+{q:"Lors du déclenchement d’une alarme incendie en gare, quelle est la première action à réaliser sur la centrale SSI ?",o:["Se rendre immédiatement sur zone","Arrêter le signal sonore pour analyser","Réarmer le système","Appeler les secours"],c:1},
+{q:"Quelle information doit être identifiée en priorité sur la centrale SSI ?",o:["Historique des alarmes","Localisation précise (zone / local)","Niveau d’accès","Heure de déclenchement"],c:1},
+{q:"Comment identifier visuellement un déclencheur manuel ou détecteur en alarme ?",o:["Voyant vert","Voyant rouge clignotant","Signal sonore","Étiquette"],c:1},
+{q:"Lorsqu’un feu est confirmé ou qu’un doute sérieux subsiste, quelle est la conduite prioritaire ?",o:["Réarmer le SSI","Poursuivre la levée de doute","Mettre en sécurité les personnes et alerter","Attendre l’astreinte"],c:2},
+{q:"Concernant l’alarme sonore incendie en gare, quelle règle doit être respectée ?",o:["Elle peut être arrêtée dès identification","Elle facilite la levée de doute","Elle reste active jusqu’à fin d’évacuation","Elle s’arrête automatiquement"],c:2},
+{q:"Le passage au niveau 2 du SMSI permet principalement :",o:["Déclencher l’évacuation","Accéder aux commandes de gestion","Neutraliser l’alarme","Couper le SDI"],c:1},
+{q:"Le rôle principal du SDI est de :",o:["Agir sur le bâtiment","Détecter et signaler un départ de feu","Commander le désenfumage","Gérer l’évacuation"],c:1},
+{q:"Qui pilote le désenfumage dans le cadre du SSI ?",o:["L’agent terrain","Le SDI","Le SMSI","Les secours uniquement"],c:2},
+{q:"En situation incendie, la priorité absolue du CEV est :",o:["Continuité du service","Protection du matériel","Sécurité des personnes","Remise du SSI"],c:2},
+{q:"Lors de l’arrivée des sapeurs-pompiers, le rôle du CEV est :",o:["Diriger les opérations","Intervenir sur le feu","Accueillir et transmettre les informations","Réarmer le système"],c:2},
+{q:"Quels sont les numéros d’urgence à utiliser en cas d’incendie ?",o:["17 et 112","18 et 112","15 et 18","112 uniquement"],c:1},
+{q:"Quelle information est prioritaire à transmettre aux sapeurs-pompiers ?",o:["Cause supposée","Localisation précise et évolution","Nom du chef d’escale","Impact circulation"],c:1}
 ];
 
 let idx=0,answers=[];
-
 const $=id=>document.getElementById(id);
 
+/* ACCÈS */
 $("startBtn").onclick=()=>{
-  if(!$("service").value || !$("nom").value || !$("prenom").value){
+  if(
+    !$("service").value ||
+    !$("nom").value ||
+    !$("prenom").value ||
+    $("code").value !== CODE_SESSION
+  ){
     $("startError").style.display="block";
     return;
   }
@@ -101,8 +179,8 @@ $("startBtn").onclick=()=>{
 };
 
 function render(){
-  $("qIndex").textContent=idx+1;
-  $("question").textContent=QUESTIONS[idx].q;
+  $("qIndex").textContent = idx+1;
+  $("question").textContent = QUESTIONS[idx].q;
   $("options").innerHTML="";
   QUESTIONS[idx].o.forEach((t,i)=>{
     const l=document.createElement("label");
@@ -123,29 +201,50 @@ $("nextBtn").onclick=()=>{
   } else render();
 };
 
-$("sendBtn").onclick=()=>{
-  showCorrection(); // AFFICHAGE GARANTI
+/* ENVOI */
+$("sendBtn").onclick=async()=>{
+  const score = answers.filter((a,i)=>a===QUESTIONS[i].c).length;
+  const payload = {
+    nom: $("nom").value,
+    prenom: $("prenom").value,
+    service: $("service").value,
+    score: score + "/12",
+    details: answers,
+    commentaire: $("commentaire").value,
+    userAgent: navigator.userAgent
+  };
+
+  $("sendInfo").textContent = "Envoi des réponses…";
+
+  try{
+    await fetch(APPS_SCRIPT_URL,{
+      method:"POST",
+      body: JSON.stringify(payload),
+      mode:"no-cors"
+    });
+  }catch(e){}
+
+  showCorrection(score);
 };
 
-function showCorrection(){
+function showCorrection(score){
   $("sendCard").style.display="none";
   $("correctionCard").style.display="block";
-  let score=0;
+  $("score").innerHTML=`<strong>Score : ${score}/12</strong>`;
   $("details").innerHTML="";
   QUESTIONS.forEach((q,i)=>{
-    const ok=answers[i]===q.c;
-    if(ok) score++;
+    const ok = answers[i]===q.c;
     const div=document.createElement("div");
     div.innerHTML=`
       <p>
-      <strong>Q${i+1}</strong> – ${q.q}<br>
-      <span class="${ok?"good":"bad"}">Ta réponse : ${q.o[answers[i]]||"Aucune"}</span><br>
-      <span class="good">Bonne réponse : ${q.o[q.c]}</span>
+        <strong>Q${i+1}</strong> – ${q.q}<br>
+        <span class="${ok?"good":"bad"}">Ta réponse : ${q.o[answers[i]]||"Aucune"}</span><br>
+        <span class="good">Bonne réponse : ${q.o[q.c]}</span>
       </p>`;
     $("details").appendChild(div);
   });
-  $("score").innerHTML=`<strong>Score : ${score}/12</strong>`;
 }
 </script>
 </body>
 </html>
+
