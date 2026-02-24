@@ -131,7 +131,7 @@ button:disabled { background: #9ca3af; cursor: not-allowed; }
   color: #111827;
 }
 
-/* Options de réponse améliorées */
+/* Options QCM */
 .options label {
   display: flex;
   align-items: center;
@@ -148,16 +148,12 @@ button:disabled { background: #9ca3af; cursor: not-allowed; }
   border-color: #d1d5db;
   background: #f3f4f6;
 }
-/* Magie CSS pour styliser l'option sélectionnée */
 .options label:has(input:checked) {
   border-color: var(--primary);
   background: var(--primary-bg);
   color: #0d47a1;
 }
-/* Cacher le bouton radio natif pour un look plus épuré */
-.options input[type="radio"] {
-  display: none; 
-}
+.options input[type="radio"] { display: none; }
 
 /* Utilitaires */
 .danger { color: var(--ko); font-weight: 600; margin-top: 15px; font-size: 0.9rem; }
@@ -234,6 +230,22 @@ button:disabled { background: #9ca3af; cursor: not-allowed; }
   <button id="nextBtn" disabled>Valider et Continuer</button>
 </div>
 
+<div id="orderCard" class="card" style="display:none">
+  <div class="q-header">
+    <span>Question 13 sur 13 - Pas à pas de Bayonne</span>
+  </div>
+  <div class="progress-container">
+    <div class="progress-bar" style="width: 100%;"></div>
+  </div>
+  
+  <div class="question-text">Classez ces actions dans l'ordre chronologique de la procédure en cas d'alarme :</div>
+  <p style="font-size: 0.9rem; color: #6b7280; margin-top: -15px; margin-bottom: 20px;">Utilisez les flèches pour monter ou descendre les étapes.</p>
+  
+  <div id="sortableList"></div>
+  
+  <button id="validateOrderBtn">Valider l'ordre et Terminer</button>
+</div>
+
 <div id="sendCard" class="card" style="display:none">
   <h2>Évaluation terminée !</h2>
   <p>Merci d'avoir répondu à toutes les questions.</p>
@@ -258,23 +270,34 @@ button:disabled { background: #9ca3af; cursor: not-allowed; }
 const CODE_SESSION = "escalebayonne";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwmsKnIF0TcKtKYAnwg0XetWkUiorxTJuBYW6gw6zbTohBUhvI1b5bJO9ladR-zssG2/exec";
 
-/* QUESTIONS REFORMULÉES POUR PLUS DE CLARTÉ */
+/* TEXTES DU PAS À PAS DE BAYONNE BASÉ SUR LE DOCUMENT FOURNI */
+const ETAPES_BAYONNE = [
+  "Arrêter le signal sonore du SDI",
+  "Arrêter le signal sonore du SMSI",
+  "Lire la localisation de l'alarme et prendre les plans",
+  "Se rendre sur les lieux pour faire la levée de doute",
+  "Alerter les secours, évacuer et accueillir les pompiers"
+];
+
+/* QUESTIONS QCM */
 const QUESTIONS = [
   { q: "En gare, quelle est votre première action sur la centrale SSI lors du déclenchement d'une alarme incendie ?", o: ["Se rendre immédiatement sur la zone concernée", "Arrêter le signal sonore pour analyser la situation", "Réarmer immédiatement le système", "Appeler les secours extérieurs (18/112)"], c: 1 },
   { q: "Quelle information cruciale devez-vous identifier en priorité sur l'écran de la centrale SSI ?", o: ["L'historique des dernières alarmes", "La localisation précise de l'événement (zone et local)", "Votre niveau d'accès actuel", "L'heure exacte du déclenchement"], c: 1 },
-  { q: "Comment confirmez-vous visuellement qu'un DAI est bien en alarme ?", o: ["Il émet une lumière verte continue", "Son voyant rouge est allumé ou clignotant", "Il émet un signal sonore strident", "Son étiquette d'identification a changé de couleur"], c: 1 },
+  { q: "Comment confirmez-vous visuellement qu'un détecteur ou un déclencheur manuel est bien en alarme ?", o: ["Il émet une lumière verte continue", "Son voyant rouge est allumé ou clignotant", "Il émet un signal sonore strident", "Son étiquette d'identification a changé de couleur"], c: 1 },
   { q: "Face à un feu confirmé ou en cas de doute sérieux, quelle est la priorité absolue ?", o: ["Réarmer le Système de Sécurité Incendie (SSI)", "Poursuivre seul la levée de doute de manière exhaustive", "Mettre en sécurité les personnes et donner l'alerte", "Attendre l'arrivée du personnel d'astreinte"], c: 2 },
   { q: "Quelle est la règle fondamentale concernant l'alarme sonore d'évacuation en gare ?", o: ["Elle peut être arrêtée dès que l'incident est identifié", "Elle facilite la communication lors de la levée de doute", "Elle doit rester active jusqu'à la fin complète de l'évacuation", "Elle s'arrête automatiquement après 5 minutes"], c: 2 },
   { q: "Que permet de faire le passage au niveau 2 d'accès sur le SMSI ?", o: ["Déclencher l'évacuation générale", "Accéder aux commandes de gestion et de mise en sécurité", "Neutraliser définitivement l'alarme", "Couper l'alimentation du SDI"], c: 1 },
   { q: "Quelle est la fonction principale du SDI (Système de Détection Incendie) ?", o: ["Agir physiquement sur le bâtiment (portes, ventilation)", "Détecter un départ de feu et le signaler à la centrale", "Commander automatiquement le désenfumage", "Gérer et diffuser le message d'évacuation"], c: 1 },
   { q: "Dans le cadre du SSI, quel équipement pilote la fonction de désenfumage ?", o: ["L'agent terrain via une commande locale", "Le Système de Détection Incendie (SDI)", "Le Système de Mise en Sécurité Incendie (SMSI)", "Les sapeurs-pompiers exclusivement"], c: 2 },
-  { q: "En situation de crise incendie, quelle est la priorité absolue du Chef d’Escale (CEV) ?", o: ["Assurer la continuité du service ferroviaire", "Protéger le matériel et les infrastructures", "Garantir la sécurité et l'évacuation des personnes", "Procéder à la remise en service du SSI"], c: 2 },
+  { q: "En situation de crise incendie, quelle est la priorité absolue du Chef d’Équipe d'Intervention (CEV) ?", o: ["Assurer la continuité du service ferroviaire", "Protéger le matériel et les infrastructures", "Garantir la sécurité et l'évacuation des personnes", "Procéder à la remise en service du SSI"], c: 2 },
   { q: "À l'arrivée des sapeurs-pompiers, quel est le rôle prioritaire du CEV ?", o: ["Diriger les opérations d'extinction avec eux", "Intervenir directement sur le foyer de l'incendie", "Les accueillir, les orienter et leur transmettre les informations", "Réarmer le système pour stopper les alarmes"], c: 2 },
   { q: "Quels sont les numéros d'urgence officiels à composer en cas d'incendie ?", o: ["Le 17 (Police) et le 112 (Urgence Européenne)", "Le 18 (Pompiers) et le 112 (Urgence Européenne)", "Le 15 (SAMU) et le 18 (Pompiers)", "Uniquement le 112"], c: 1 },
   { q: "Quelle information est la plus importante à transmettre lors de l'appel aux sapeurs-pompiers ?", o: ["La cause supposée du départ de feu", "La localisation précise de l'incendie et son évolution", "Le nom et le matricule du chef d'escale", "L'impact immédiat sur la circulation des trains"], c: 1 }
 ];
 
 let idx = 0, answers = [];
+let currentOrder = [...ETAPES_BAYONNE].sort(() => Math.random() - 0.5); // Mélange l'ordre de base
+let orderResult = false;
 const $ = id => document.getElementById(id);
 
 /* ACCÈS */
@@ -291,9 +314,7 @@ $("startBtn").onclick = () => {
 
 function render() {
   $("qIndex").textContent = idx + 1;
-  
-  // Mise à jour de la barre de progression
-  const progressPercent = (idx / QUESTIONS.length) * 100;
+  const progressPercent = (idx / (QUESTIONS.length + 1)) * 100;
   $("progressBar").style.width = progressPercent + "%";
   
   $("question").textContent = QUESTIONS[idx].q;
@@ -316,26 +337,65 @@ $("nextBtn").onclick = () => {
   
   if (idx === QUESTIONS.length) {
     $("quizCard").style.display = "none";
-    $("sendCard").style.display = "block";
+    $("orderCard").style.display = "block";
+    renderOrder();
   } else {
-    // Petite animation de transition
     $("quizCard").style.animation = 'none';
-    $("quizCard").offsetHeight; // Trigger reflow
+    $("quizCard").offsetHeight; 
     $("quizCard").style.animation = 'fadeIn 0.3s ease-out';
     render();
   }
 };
 
+/* LOGIQUE QUESTION ORDRE CHRONO */
+function renderOrder() {
+  const list = $("sortableList");
+  list.innerHTML = "";
+  currentOrder.forEach((step, i) => {
+    list.innerHTML += `
+      <div style="display:flex; align-items:center; background:#f9fafb; border:2px solid #e5e7eb; border-radius:10px; margin-bottom:10px; padding:12px 15px;">
+        <div style="flex:1; font-weight:500; font-size:1rem; color:#111827;">${step}</div>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-left:15px;">
+          <button onclick="moveUp(${i})" style="margin:0; padding:8px 12px; border-radius:6px; background:${i===0?'#e5e7eb':'var(--primary)'}; color:${i===0?'#9ca3af':'#fff'}; font-size:1.2rem;" ${i===0?'disabled':''}>▲</button>
+          <button onclick="moveDown(${i})" style="margin:0; padding:8px 12px; border-radius:6px; background:${i===currentOrder.length-1?'#e5e7eb':'var(--primary)'}; color:${i===currentOrder.length-1?'#9ca3af':'#fff'}; font-size:1.2rem;" ${i===currentOrder.length-1?'disabled':''}>▼</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+function moveUp(i) {
+  if (i > 0) {
+    [currentOrder[i-1], currentOrder[i]] = [currentOrder[i], currentOrder[i-1]];
+    renderOrder();
+  }
+}
+
+function moveDown(i) {
+  if (i < currentOrder.length - 1) {
+    [currentOrder[i+1], currentOrder[i]] = [currentOrder[i], currentOrder[i+1]];
+    renderOrder();
+  }
+}
+
+$("validateOrderBtn").onclick = () => {
+  orderResult = currentOrder.every((val, index) => val === ETAPES_BAYONNE[index]);
+  $("orderCard").style.display = "none";
+  $("sendCard").style.display = "block";
+};
+
 /* ENVOI */
 $("sendBtn").onclick = async () => {
   const score = answers.filter((a, i) => a === QUESTIONS[i].c).length;
+  const infoOrder = orderResult ? "[✔️ Chronologie : CORRECTE]" : "[❌ Chronologie : INCORRECTE]";
+  
   const payload = {
     nom: $("nom").value,
     prenom: $("prenom").value,
     service: $("service").value,
     score: score + "/12",
     details: answers,
-    commentaire: $("commentaire").value,
+    commentaire: infoOrder + "\n\n" + $("commentaire").value,
     userAgent: navigator.userAgent
   };
 
@@ -358,9 +418,10 @@ $("sendBtn").onclick = async () => {
 function showCorrection(score) {
   $("sendCard").style.display = "none";
   $("correctionCard").style.display = "block";
-  $("score").innerHTML = `<strong>Score final : ${score} / 12</strong>`;
+  $("score").innerHTML = `<strong>Score QCM : ${score} / 12</strong>`;
   $("details").innerHTML = "";
-  
+
+  // 1. Affichage des questions classiques en premier
   QUESTIONS.forEach((q, i) => {
     const ok = answers[i] === q.c;
     const div = document.createElement("div");
@@ -376,6 +437,21 @@ function showCorrection(score) {
     `;
     $("details").appendChild(div);
   });
+  
+  // 2. Affichage du résultat de la question Chrono en DERNIER
+  const divBonus = document.createElement("div");
+  divBonus.className = `correction-item ${orderResult ? 'correct' : 'incorrect'}`;
+  const bonneReponseHTML = ETAPES_BAYONNE.map((s,i) => `<strong>${i+1}.</strong> ${s}`).join('<br>');
+  divBonus.innerHTML = `
+    <p style="margin-top:0; font-weight:600;">Question 13 : Procédure de Bayonne</p>
+    <p style="margin-bottom:5px;">
+      <span class="${orderResult ? 'good' : 'bad'}">
+        ${orderResult ? '✓ Parfait, l\'ordre chronologique est maîtrisé !' : '✗ L\'ordre des actions n\'était pas le bon.'}
+      </span>
+    </p>
+    ${!orderResult ? `<p style="margin-top:10px;"><span class="good">💡 L'ordre correct était :<br>${bonneReponseHTML}</span></p>` : ''}
+  `;
+  $("details").appendChild(divBonus);
 }
 </script>
 </body>
